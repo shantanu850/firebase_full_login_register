@@ -39,47 +39,69 @@ class Auth extends StatefulWidget {
 
 class _SplashPageState extends State<Auth> with TickerProviderStateMixin {
   @override
-  void initState() {
-    FirebaseAuth.instance
-        .currentUser()
-        .then((currentUser) =>
-    {
-      if (currentUser == null)
-        {Navigator.pushReplacement(context, MaterialPageRoute(
-            builder: (context) => LoginScreen(
-              appIcon: widget.appIcon,
-              appName: widget.appName,
-              emailImage: widget.emailImage,
-              googleImage: widget.googleImage,
-              facebookImage: widget.facebookImage,
-              databaseName: widget.userDataBaseName,
-              backgroundImageAsset: widget.backgroundImageAsset,
-              container: widget.completeRegisterPage,
-              home: widget.homePage,
-            )),)}
-      else
-        {
-          Firestore.instance.collection(widget.userDataBaseName).document(currentUser.uid)
-              .get()
-              .then((value) =>
-          (value['CompleteRegister'] == true)?
-          Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.homePage,user:value)),
-          ) : Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (context) => Registration(container:widget.completeRegisterPage,isNumber:null,data:"")),
-          )
-          ),
-        }
-    });
-    super.initState();
-  }
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
         height: MediaQuery.of(context).size.height,
-        child: widget.loadingWidget,
+        child: StreamBuilder<FirebaseUser>(
+            stream: FirebaseAuth.instance.onAuthStateChanged,
+            builder: (BuildContext context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Container(
+                  //loading
+                );
+              } else {
+                if (snapshot.data != null) {
+                  return Loader(
+                    uid: snapshot.data.uid,
+                    db:widget.userDataBaseName,
+                    homepage: widget.homePage,
+                    complete: widget.completeRegisterPage,
+                    context: context,
+                  );
+                } else {
+                  return LoginScreen(
+                    appIcon: widget.appIcon,
+                    appName: widget.appName,
+                    emailImage: widget.emailImage,
+                    googleImage: widget.googleImage,
+                    facebookImage: widget.facebookImage,
+                    databaseName: widget.userDataBaseName,
+                    backgroundImageAsset: widget.backgroundImageAsset,
+                    container: widget.completeRegisterPage,
+                    home: widget.homePage,
+                  );
+                }
+              }
+            }),
       ),
+    );
+  }
+}
+class Loader extends StatelessWidget {
+  final db;
+  final uid;
+  final context;
+  final homepage;
+  final complete;
+  const Loader({Key key, this.db, this.uid, this.context, this.homepage, this.complete}) : super(key: key);
+
+  initState(){
+    Firestore.instance.collection(db).document(uid)
+        .get()
+        .then((value) =>
+    (value['CompleteRegister'] == true)?
+    Navigator.pushReplacement(context,
+      MaterialPageRoute(builder: (context) => HomeScreenMain(home:homepage)),
+    ) : Navigator.pushReplacement(context,
+      MaterialPageRoute(builder: (context) => Registration(container:complete)),
+    )
+    );
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+    //loading
     );
   }
 }

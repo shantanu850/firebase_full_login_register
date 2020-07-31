@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_full_login_register_web/exception_Handaler.dart';
+import 'package:firebase/firebase.dart' as firebase;
 
 class LoginScreen extends StatefulWidget {
   final Widget appIcon;
@@ -983,7 +984,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     try {
       AuthResult authResult = await _auth.signInWithEmailAndPassword(email: email, password: password);
       if (authResult.user != null) {
-        _status = AuthResultStatus.successful;
+            firebase.auth().setPersistence(firebase.Persistence.LOCAL);
+            _status = AuthResultStatus.successful;
       } else {
         _status = AuthResultStatus.undefined;
       }
@@ -1001,6 +1003,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     try {
       AuthResult authResult = await _auth.createUserWithEmailAndPassword(email: email, password: password);
       if (authResult.user != null) {
+        firebase.auth().setPersistence(firebase.Persistence.LOCAL);
         Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
         authResult.user.sendEmailVerification();
         _status = AuthResultStatus.successful;
