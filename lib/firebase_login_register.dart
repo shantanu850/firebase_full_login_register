@@ -1,8 +1,10 @@
+library firebase_full_login_register_web;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_login_register/mainScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:firebase_full_login_register_web/mainScreen.dart';
 
 class Auth extends StatefulWidget {
   final Widget appIcon;
@@ -14,6 +16,7 @@ class Auth extends StatefulWidget {
   final String userDataBaseName;
   final AssetImage backgroundImageAsset;
   final Widget completeRegisterPage;
+  final Widget homePage;
 
 
   Auth({ Key key,
@@ -24,7 +27,9 @@ class Auth extends StatefulWidget {
     this.googleImage,
     this.facebookImage,
     this.emailImage,
-    this.backgroundImageAsset, this.completeRegisterPage
+    this.backgroundImageAsset,
+    this.completeRegisterPage,
+    this.homePage
   }) : super(key: key);
 
 
@@ -50,18 +55,18 @@ class _SplashPageState extends State<Auth> with TickerProviderStateMixin {
               databaseName: widget.userDataBaseName,
               backgroundImageAsset: widget.backgroundImageAsset,
               container: widget.completeRegisterPage,
+              home: widget.homePage,
             )),)}
       else
         {
           Firestore.instance.collection(widget.userDataBaseName).document(currentUser.uid)
               .get()
               .then((value) =>
-          (value['CompleteRegister'] == true ||
-              value['CompleteRegister'] != null) ?
+          (value['CompleteRegister'] == true)?
           Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (context) => HomeScreen()),
+            MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.homePage,user:value)),
           ) : Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (context) => CompleteRegistration(container:widget.completeRegisterPage,isNumber:false,data:"")),
+            MaterialPageRoute(builder: (context) => Registration(container:widget.completeRegisterPage,isNumber:null,data:"")),
           )
           ),
         }

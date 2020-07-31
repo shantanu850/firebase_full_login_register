@@ -1,10 +1,12 @@
-library firebase_login_register;
-
 import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_full_login_register_web/exception_Handaler.dart';
 
 class LoginScreen extends StatefulWidget {
   final Widget appIcon;
@@ -15,25 +17,214 @@ class LoginScreen extends StatefulWidget {
   final String databaseName;
   final AssetImage backgroundImageAsset;
   final Widget container;
-  const LoginScreen({Key key, this.appIcon, this.appName, this.googleImage, this.facebookImage, this.emailImage, this.databaseName, this.backgroundImageAsset, this.container}): super(key: key);
+  final onFacebooktap;
+  final home;
+  final Color backgroundColor;
+
+  const LoginScreen({Key key,
+    this.appIcon,
+    this.appName,
+    this.googleImage,
+    this.facebookImage,
+    this.emailImage,
+    this.databaseName,
+    this.backgroundImageAsset,
+    this.container,
+    this.home,
+    this.onFacebooktap,
+    this.backgroundColor = Colors.redAccent,
+  }): super(key: key);
   @override
   _LoginScreenState createState() => new _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   String email,password,displayName,surName,phoneNo,confPassword;
   final formKeyPhone = new GlobalKey<FormState>();
   String verificationId, smsCode;
   bool codeSent = false;
-  int _state = 0;
+  int _state;
   final formKeyReg = GlobalKey<FormState>();
   final formKey = GlobalKey<FormState>();
+  final formKeyReset = GlobalKey<FormState>();
+  final _auth = FirebaseAuth.instance;
+  AuthResultStatus _status;
+  PageController _controller = new PageController(initialPage: 1, viewportFraction: 1.0);
   @override
   void initState() {
+    _state = 0;
     super.initState();
   }
-  Widget Home() {
+
+  ///Alert popups
+  showReset(BuildContext context) {
+    bool send = false;
+    String email;
+    AlertDialog alert = AlertDialog(
+      title: Text("We will send you password reset link",maxLines:1,),
+      content: Padding(
+        padding: const EdgeInsets.symmetric(vertical:5.0),
+        child: Form(
+          key: formKeyReset,
+          child: TextFormField(
+            obscureText: false,
+            decoration: new InputDecoration(
+              prefixIcon: new Icon(Icons.person,color:Colors.redAccent),
+              labelText: 'Email',
+              labelStyle: TextStyle(color: Colors.black),
+              fillColor: widget.backgroundColor.withOpacity(0.3),
+              filled: true,
+              border: new OutlineInputBorder(
+                  borderRadius: new BorderRadius.circular(25.0),
+                  borderSide: new BorderSide(
+                    color: Colors.redAccent,
+                  )),
+              focusedBorder: new OutlineInputBorder(
+                  borderRadius: new BorderRadius.circular(25.0),
+                  borderSide: new BorderSide(
+                    color: Colors.redAccent,
+                  )),
+              enabledBorder: new OutlineInputBorder(
+                  borderRadius: new BorderRadius.circular(25.0),
+                  borderSide: new BorderSide(
+                    color: Colors.redAccent,
+                  )),
+            ),
+            validator: (val) {
+              Pattern pattern =
+                  r'^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$';
+              RegExp regex = new RegExp(pattern);
+              if (!regex.hasMatch(val)) {
+                return 'Email format is invalid';
+              } else {
+                return null;
+              }
+            },
+            onChanged: (value) {
+              email = value; //get the value entered by user.
+            },
+            keyboardType: TextInputType.emailAddress,
+            style: new TextStyle(
+              height: 1.0,
+              fontSize: 14,
+              fontFamily: "Poppins",
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        (send==false)?ButtonBar(
+            children:[
+              FlatButton(
+                onPressed: () {
+                  if (formKeyReset.currentState.validate()) {
+                    resetPassword(email, context);
+                    setState(() {
+                      send = true;
+                    });
+                  }
+                  }, child: Text("Send"),
+              ),
+              FlatButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text("Close"),
+              )
+            ]
+        ):FlatButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: Text("Done"),
+        )
+      ],
+    );
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+  showError(BuildContext context,message) {
+    // Create button
+    Widget okButton = FlatButton(
+      child: Text("OK"),
+      onPressed: () {
+        Navigator.of(context).pop();
+      },
+    );
+    setState(() {
+      _state = 2;
+    });
+    // Create AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text("Error"),
+      content: Text(message.toString()),
+      actions: [
+        okButton,
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+  Future<bool> _onBackPressed() {
+    return showDialog(
+      context: context,
+      builder: (context) => new AlertDialog(
+        title: new Text('Are you sure?'),
+        content: new Text('Do you want to exit an App'),
+        actions: <Widget>[
+          new FlatButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text("NO"),
+          ),
+          SizedBox(height: 16),
+          new FlatButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text("YES"),
+          ),
+        ],
+      ),
+    ) ??
+        false;
+  }
+
+  ///main widget
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: _onBackPressed,
+      child: Scaffold(
+        body: Container(
+            decoration: BoxDecoration(
+              color: widget.backgroundColor,
+              image: DecorationImage(
+                colorFilter: new ColorFilter.mode(
+                    Colors.black.withOpacity(0.3), BlendMode.dstATop),
+                image: widget.backgroundImageAsset,
+                fit: BoxFit.cover,
+              ),
+            ),
+            child: PageView(
+              controller: _controller,
+              physics: new AlwaysScrollableScrollPhysics(),
+              children: <Widget>[loginPage(context), home(), signUpPage()],
+              scrollDirection: Axis.horizontal,
+            )),
+      ),
+    );
+  }
+
+  ///main layouts home,loginPage,signUpPage,
+  Widget home() {
     var height = MediaQuery.of(context).size.height;
     var width = MediaQuery.of(context).size.width;
     return Container(
@@ -87,7 +278,8 @@ class _LoginScreenState extends State<LoginScreen>
               },
               onChanged: (value) {
                 setState(() {
-                  this.phoneNo = value;
+                  String code = "+91";
+                  this.phoneNo = code+value;
                 });//get the value entered by user.
               },
               keyboardType: TextInputType.phone,
@@ -232,7 +424,9 @@ class _LoginScreenState extends State<LoginScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children:<Widget>[
                       GestureDetector(
-                        onTap: (){},
+                        onTap: (){
+                          googleSignIn();
+                        },
                         child: Container(
                           margin: EdgeInsets.all(5),
                           width:width*0.15,
@@ -244,7 +438,9 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ),
                       GestureDetector(
-                        onTap: (){},
+                        onTap: (){
+                          gotoLogin();
+                        },
                         child: Container(
                           margin: EdgeInsets.all(5),
                           width:width*0.15,
@@ -256,7 +452,9 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ),
                       GestureDetector(
-                        onTap: (){},
+                        onTap: (){
+                          widget.onFacebooktap;
+                        },
                         child: Container(
                           margin: EdgeInsets.all(5),
                           width:width*0.15,
@@ -278,59 +476,7 @@ class _LoginScreenState extends State<LoginScreen>
       ),
     );
   }
-  signIn(AuthCredential authCreds) {
-    FirebaseAuth.instance.signInWithCredential(authCreds).then((value) =>
-    {
-      if(value.additionalUserInfo.isNewUser){
-        Navigator.pushReplacement(context, MaterialPageRoute(
-            builder: (context) => CompleteRegistration(isNumber:true,data:this.phoneNo,)))
-      }else{
-        Firestore.instance.collection(widget.databaseName).document(value.user.uid).get()
-            .then((DocumentSnapshot result) =>
-        (result["CompleteRegister"]==true)?
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreen())):
-        Navigator.push(context, MaterialPageRoute(builder: (context) => CompleteRegistration(isNumber:true,data:this.phoneNo,container: widget.container)))
-        )
-      }
-    }
-    );
-  }
-  signInWithOTP(smsCode, verId) {
-    AuthCredential authCreds = PhoneAuthProvider.getCredential(
-        verificationId: verId, smsCode: smsCode);
-    signIn(authCreds);
-  }
-  Future<void> verifyPhone(phoneNo) async {
-    final PhoneVerificationCompleted verified = (AuthCredential authResult) {
-      signIn(authResult);
-    };
-
-    final PhoneVerificationFailed verificationfailed =
-        (AuthException authException) {
-      print('${authException.message}');
-    };
-
-    final PhoneCodeSent smsSent = (String verId, [int forceResend]) {
-      this.verificationId = verId;
-      setState(() {
-        this.codeSent = true;
-      });
-    };
-
-    final PhoneCodeAutoRetrievalTimeout autoTimeout = (String verId) {
-      this.verificationId = verId;
-    };
-
-    await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: phoneNo,
-        timeout: Duration(seconds: 120),
-        verificationCompleted: verified,
-        verificationFailed: verificationfailed,
-        codeSent: smsSent,
-        codeAutoRetrievalTimeout: autoTimeout);
-  }
-  Widget LoginPage() {
-    var height = MediaQuery.of(context).size.height;
+  Widget loginPage(context) {
     var width = MediaQuery.of(context).size.width;
     return Container(
       alignment: Alignment.center,
@@ -403,6 +549,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 style: new TextStyle(
                                   height: 1.0,
                                   fontSize: 14,
+                                  color: Colors.white,
                                   fontFamily: "Poppins",
                                 ),
                               ),
@@ -447,6 +594,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 style: new TextStyle(
                                   height: 1.0,
                                   fontSize: 14,
+                                  color: Colors.white,
                                   fontFamily: "Poppins",
                                 ),
                               ),
@@ -460,15 +608,24 @@ class _LoginScreenState extends State<LoginScreen>
                                     child :InkWell(
                                       borderRadius: BorderRadius.circular(30),
                                       onTap: () async{
-                                        try {
-                                          if (formKey.currentState.validate()) {
-                                            signInE(email, password, context);
+                                        if (formKey.currentState.validate()) {
+                                          setState(() {
+                                            _state = 1;
+                                          });
+                                          final status = await signInEmail(email,password,context);
+                                          if (status == AuthResultStatus.successful) {
+                                            _auth.currentUser().then((value) =>
+                                                Firestore.instance.collection(widget.databaseName).document(value.uid).get()
+                                                    .then((DocumentSnapshot result) =>
+                                                (result["CompleteRegister"]==true)?
+                                                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.home,user:result))):
+                                                Navigator.push(context, MaterialPageRoute(builder: (context) => Registration(isNumber:false,data:email,container: widget.container,)))));
+                                          } else {
+                                            //final errorMsg = AuthExceptionHandler.generateExceptionMessage(status);
                                             setState(() {
-                                              if (_state == 0) {
-                                                animateButton();
-                                              }
-                                            });}
-                                        }catch(e){
+                                              _state = 0;
+                                            });
+                                          }
                                         }
                                       },
                                       splashColor: Colors.blue,
@@ -479,7 +636,20 @@ class _LoginScreenState extends State<LoginScreen>
                                           borderRadius: BorderRadius.circular(30),
                                         ),
                                         child: Center(
-                                          child: setUpButtonChild("SignIn"),
+                                          child:(_state==0)?Text(
+                                            "Login",
+                                            style: const TextStyle(
+                                              color: Colors.purple,
+                                              fontSize: 16.0,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ):Loader(
+                                            dotOneColor: Colors.purple,
+                                            dotTwoColor: Colors.pink,
+                                            dotThreeColor: Colors.red,
+                                            dotType: DotType.circle,
+                                            duration: Duration(seconds:2),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -495,7 +665,7 @@ class _LoginScreenState extends State<LoginScreen>
                 width: width*0.55,
                 padding: EdgeInsets.symmetric(vertical:width*0.02),
                 child :GestureDetector(
-                  onTap: (){gotoSignup();},
+                  onTap: (){gotoSignUp();},
                   child: Text(
                     "Don't have an account? Sign Up",
                     textAlign: TextAlign.center,
@@ -506,15 +676,31 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
               ),
+              Container(
+                width: width*0.55,
+                padding: EdgeInsets.symmetric(vertical:width*0.02),
+                child :FlatButton(
+                  color: Colors.transparent,
+                  onPressed: (){
+                    showReset(context);
+                  },
+                  child: Text(
+                    "Forgot Password ? ",
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
       ),
     );
   }
-
-  Widget SignupPage() {
-    var height = MediaQuery.of(context).size.height;
+  Widget signUpPage() {
     var width = MediaQuery.of(context).size.width;
     return Container(
       alignment: Alignment.center,
@@ -587,6 +773,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 style: new TextStyle(
                                   height: 1.0,
                                   fontSize: 14,
+                                  color: Colors.white,
                                   fontFamily: "Poppins",
                                 ),
                               ),
@@ -690,20 +877,30 @@ class _LoginScreenState extends State<LoginScreen>
                                     child :InkWell(
                                       borderRadius: BorderRadius.circular(30),
                                       onTap: () async{
-                                        try {
-                                          if (formKeyReg.currentState.validate()) {
-                                            if (password == confPassword) {
-                                              signUp(email, password, context);
+                                        if (formKeyReg.currentState.validate()) {
+                                          if (password == confPassword) {
+                                            setState(() {
+                                              _state = 1;
+                                            });
+                                            final status = await signUpEmail(email,password,context);
+                                            if (status == AuthResultStatus.successful) {
+                                              _auth.currentUser().then((value) =>
+                                                  Firestore.instance.collection(widget.databaseName).document(value.uid).setData({
+                                                    "CompleteRegister":false,
+                                                  }).then((value) =>
+                                                      Navigator.push(context, MaterialPageRoute(
+                                                          builder: (context) => Registration(isNumber:false,data:email,container: widget.container,)))
+                                                  )
+                                              );
+                                            } else {
+                                              // final errorMsg = AuthExceptionHandler.generateExceptionMessage(status);
                                               setState(() {
-                                                if (_state == 0) {
-                                                  animateButton();
-                                                }
+                                                _state = 0;
                                               });
-                                            }else{
-                                              Scaffold.of(context).showSnackBar(SnackBar(content: Text('Password and Confirm password did not match')));
                                             }
+                                          }else{
+                                            showError(context, 'Password and Confirm password did not match');
                                           }
-                                        }catch(e){
                                         }
                                       },
                                       splashColor: Colors.blue,
@@ -714,7 +911,20 @@ class _LoginScreenState extends State<LoginScreen>
                                           borderRadius: BorderRadius.circular(30),
                                         ),
                                         child: Center(
-                                          child: setUpButtonChild("SignUp"),
+                                          child:(_state==0)?Text(
+                                            "Sign Up",
+                                            style: const TextStyle(
+                                              color: Colors.purple,
+                                              fontSize: 16.0,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ):Loader(
+                                            dotOneColor: Colors.purple,
+                                            dotTwoColor: Colors.pink,
+                                            dotThreeColor: Colors.red,
+                                            dotType: DotType.circle,
+                                            duration: Duration(seconds:2),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -734,7 +944,7 @@ class _LoginScreenState extends State<LoginScreen>
                     gotoLogin();
                   },
                   child: Text(
-                    "Don't have an account? Sign In",
+                    "Already an account? Sign In",
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     style: TextStyle(
@@ -750,6 +960,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
+  ///layout swap controller
   gotoLogin() {
     //controller_0To1.forward(from: 0.0);
     _controller.animateToPage(
@@ -758,9 +969,7 @@ class _LoginScreenState extends State<LoginScreen>
       curve: Curves.bounceOut,
     );
   }
-
-  gotoSignup() {
-    //controller_minus1To0.reverse(from: 0.0);
+  gotoSignUp() {
     _controller.animateToPage(
       2,
       duration: Duration(milliseconds: 800),
@@ -768,153 +977,190 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  PageController _controller = new PageController(initialPage: 1, viewportFraction: 1.0);
-  Future<bool> _onBackPressed() {
-    return showDialog(
-      context: context,
-      builder: (context) => new AlertDialog(
-        title: new Text('Are you sure?'),
-        content: new Text('Do you want to exit an App'),
-        actions: <Widget>[
-          new FlatButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text("NO"),
-          ),
-          SizedBox(height: 16),
-          new FlatButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text("YES"),
-          ),
-        ],
-      ),
-    ) ??
-        false;
-  }
-  @override
-  Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onBackPressed,
-      child: Scaffold(
-        body: Container(
-            decoration: BoxDecoration(
-              color: Colors.redAccent,
-              image: DecorationImage(
-                colorFilter: new ColorFilter.mode(
-                    Colors.black.withOpacity(0.3), BlendMode.dstATop),
-                image: widget.backgroundImageAsset,
-                fit: BoxFit.cover,
-              ),
-            ),
-            child: PageView(
-              controller: _controller,
-              physics: new AlwaysScrollableScrollPhysics(),
-              children: <Widget>[LoginPage(), Home(), SignupPage()],
-              scrollDirection: Axis.horizontal,
-            )),
-      ),
-    );
-  }
-  Widget setUpButtonChild(String text) {
-    if (_state == 0) {
-      return new Text(
-        text,
-        style: const TextStyle(
-          color: Colors.purple,
-          fontSize: 16.0,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    } else{
-      return ColorLoader(
-        dotOneColor: Colors.purple,
-        dotTwoColor: Colors.pink,
-        dotThreeColor: Colors.red,
-        dotType: DotType.circle,
-        duration: Duration(seconds:2),
-      );
-    }
-  }
 
-  void animateButton() {
-    setState(() {
-      _state = 1;
-    });
-
-    Timer(Duration(milliseconds: 2000), () {
-      setState(() {
-        _state = 2;
-      });
-    });
-  }
-  signInE(String email, String password,context) {
+  ///sign in methods
+  Future<AuthResultStatus> signInEmail(String email, String password,context) async{
     try {
-      FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password)
-          .then((currentUser) => Firestore.instance.collection(widget.databaseName).document(currentUser.user.uid).get())
-          .then((DocumentSnapshot result) =>
-      (result["CompleteRegister"]==true)?
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreen())):
-      Navigator.push(context, MaterialPageRoute(builder: (context) => CompleteRegistration(isNumber:false,data:email,container: widget.container,)))
-      );
-    } catch (e){
-      return AlertDialog(
-          title: Text('error'),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                Text(e),],),),
-          actions: <Widget>[
-            FlatButton(
-                child: Text('Retry'),
-                onPressed: () {
-                  Navigator.of(context).pop();})]);
+      AuthResult authResult = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      if (authResult.user != null) {
+        _status = AuthResultStatus.successful;
+      } else {
+        _status = AuthResultStatus.undefined;
+      }
+    }catch(e){
+      print('Exception @createAccount: $e');
+      showError(context,e.message);
+      setState(() {
+        _state = 0;
+      });
+      _status = AuthExceptionHandler.handleException(e);
     }
+    return _status;
   }
+  Future<AuthResultStatus> signUpEmail(email, password,context) async{
+    try {
+      AuthResult authResult = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      if (authResult.user != null) {
+        Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
+        authResult.user.sendEmailVerification();
+        _status = AuthResultStatus.successful;
+      } else {
+        _status = AuthResultStatus.undefined;
+      }
+    }catch(e){
+      print('Exception @createAccount: $e');
+      showError(context,e.message );
+      setState(() {
+        _state = 0;
+      });
+      _status = AuthExceptionHandler.handleException(e);
+    }
+    return _status;
+  }
+  Future<AuthResultStatus> googleSignIn() async {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
+    final GoogleSignInAccount googleSignInAccount = await googleSignIn.signIn();
+    final GoogleSignInAuthentication googleSignInAuthentication =
+    await googleSignInAccount.authentication;
 
-  signUp(email, password,context) {
-    FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password,)
-        .then((currentUser) =>
-        FirebaseAuth.instance.currentUser().then((value) =>
-            Firestore.instance.collection(widget.databaseName).document(value.uid).setData({
-              "CompleteRegister":false,
-            }).then((value) =>
-            {Navigator.push(context, MaterialPageRoute(
-                builder: (context) => CompleteRegistration(isNumber:false,data:email,container: widget.container,)))}
-            )
-        )
+    final AuthCredential credential = GoogleAuthProvider.getCredential(
+      accessToken: googleSignInAuthentication.accessToken,
+      idToken: googleSignInAuthentication.idToken,
     );
+    try {
+      AuthResult authResult = await FirebaseAuth.instance.signInWithCredential(credential);
+      FirebaseUser user = authResult.user;
+      assert(!user.isAnonymous);
+      assert(await user.getIdToken() != null);
+      final FirebaseUser currentUser = await FirebaseAuth.instance.currentUser();
+      assert(user.uid == currentUser.uid);
+      if(authResult.user != null) {
+        if (authResult.additionalUserInfo.isNewUser) {
+          Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
+          Navigator.pushReplacement(context, MaterialPageRoute(
+              builder: (context) =>
+                  Registration(isNumber:false,data:user.email,container:widget.container)));
+        } else {
+          Firestore.instance.collection(widget.databaseName).document(user.uid)
+              .get()
+              .then((DocumentSnapshot result) =>
+          (result["CompleteRegister"] == true) ?
+          Navigator.pushReplacement(context, MaterialPageRoute(
+              builder: (context) => HomeScreenMain(home: widget.home,user:result))) :
+          Navigator.push(context, MaterialPageRoute(builder: (context) =>
+              Registration(isNumber:false,
+                  data:authResult.user.email,
+                  container: widget.container)))
+          );
+        }
+      }else{
+        showError(context,"User is not available , Try again ");
+      }
+    }catch(e){
+      print('Exception @createAccount: $e');
+      showError(context,e.message);
+      setState(() {
+        _state = 0;
+      });
+      _status = AuthExceptionHandler.handleException(e);
+    }
+    return _status;
   }
-}
-class HomeScreen extends StatefulWidget {
-  final Widget homescreen;
-  const HomeScreen({Key key, this.homescreen}) : super(key: key);
-  @override
-  _HomeScreenState createState() => _HomeScreenState();
+  Future<AuthResultStatus> signIn(AuthCredential authCreds) async{
+    try{
+      AuthResult authResult = await _auth.signInWithCredential(authCreds);
+      if(authResult != null){
+        if(authResult.additionalUserInfo.isNewUser){
+          Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
+          Navigator.pushReplacement(context, MaterialPageRoute(
+              builder: (context) => Registration(isNumber:true,data:this.phoneNo,container:widget.container)));
+        }else{
+          Firestore.instance.collection(widget.databaseName).document(authResult.user.uid).get()
+              .then((DocumentSnapshot result) =>
+          (result["CompleteRegister"]==true)?
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.home,user:result))):
+          Navigator.push(context, MaterialPageRoute(builder: (context) => Registration(isNumber:true,data:this.phoneNo,container: widget.container))));
+        }
+      }
+    }catch(e){
+      print('Exception @createAccount: $e');
+      showError(context,e.message);
+      setState(() {
+        _state = 0;
+      });
+      _status = AuthExceptionHandler.handleException(e);
+    }
+    return _status;
+  }
+  signInWithOTP(smsCode, verId) {
+    AuthCredential authCreds = PhoneAuthProvider.getCredential(verificationId: verId, smsCode: smsCode);
+    signIn(authCreds);
+  }
+  Future<void> verifyPhone(phoneNo) async {
+    final PhoneVerificationCompleted verified = (AuthCredential authResult) {
+      signIn(authResult);
+    };
+    final PhoneVerificationFailed verificationfailed =
+        (AuthException authException) {
+      showError(context, authException.message);
+      print('${authException.message}');
+    };
+
+    final PhoneCodeSent smsSent = (String verId, [int forceResend]) {
+      this.verificationId = verId;
+      setState(() {
+        this.codeSent = true;
+      });
+    };
+
+    final PhoneCodeAutoRetrievalTimeout autoTimeout = (String verId) {
+      this.verificationId = verId;
+    };
+
+    await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: phoneNo,
+        timeout: Duration(seconds: 120),
+        verificationCompleted: verified,
+        verificationFailed: verificationfailed,
+        codeSent: smsSent,
+        codeAutoRetrievalTimeout: autoTimeout);
+  }
+  Future<void> resetPassword(String email,context) async {
+    await _auth.sendPasswordResetEmail(email: email).whenComplete(() => Navigator.of(context).pop());
+  }
+
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  @override
-  Widget build(BuildContext context) {
-    return widget.homescreen;
-  }
-}
-class CompleteRegistration extends StatefulWidget {
+///complete registration page
+class Registration extends StatefulWidget {
   final bool isNumber;
   final String data;
   final Widget container;
-  const CompleteRegistration({Key key, this.isNumber, this.data, this.container}) : super(key: key);
+  const Registration({Key key, this.isNumber, this.data, this.container}) : super(key: key);
   @override
-  _CompleteRegistrationState createState() => _CompleteRegistrationState();
+  _RegistrationState createState() => _RegistrationState();
 }
+class _RegistrationState extends State<Registration> {
+  Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
+  setData()async{
+    final SharedPreferences prefs = await _prefs;
+    prefs.setBool("isNumber", widget.isNumber);
+    prefs.setString("data", widget.data);
+  }
+  @override
+  void initState() {
 
-class _CompleteRegistrationState extends State<CompleteRegistration> {
+    super.initState();
+  }
   @override
   Widget build(BuildContext context) {
     return widget.container;
 
   }
-
 }
-class ColorLoader extends StatefulWidget {
+
+///color loader
+class Loader extends StatefulWidget {
 
   final Color dotOneColor;
   final Color dotTwoColor;
@@ -923,7 +1169,7 @@ class ColorLoader extends StatefulWidget {
   final DotType dotType;
   final Icon dotIcon;
 
-  ColorLoader({
+  Loader({
     this.dotOneColor = Colors.redAccent,
     this.dotTwoColor = Colors.green,
     this.dotThreeColor = Colors.white,
@@ -933,11 +1179,9 @@ class ColorLoader extends StatefulWidget {
   });
 
   @override
-  _ColorLoaderState createState() => _ColorLoaderState();
+  _LoaderState createState() => _LoaderState();
 }
-
-class _ColorLoaderState extends State<ColorLoader>
-    with SingleTickerProviderStateMixin {
+class _LoaderState extends State<Loader> with SingleTickerProviderStateMixin {
   Animation<double> animation_1;
   Animation<double> animation_2;
   Animation<double> animation_3;
@@ -1052,7 +1296,6 @@ class _ColorLoaderState extends State<ColorLoader>
     super.dispose();
   }
 }
-
 class Dot extends StatelessWidget {
   final double radius;
   final Color color;
@@ -1081,169 +1324,19 @@ enum DotType {
   square, circle, diamond, icon
 }
 
-class GoogleLoder extends StatefulWidget {
-
-  final Color dotOneColor;
-  final Color dotTwoColor;
-  final Color dotThreeColor;
-  final Color dotFourColor;
-  final Duration duration;
-  final DotType dotType;
-  final Icon dotIcon;
-
-  GoogleLoder({
-    this.dotOneColor = Colors.blue,
-    this.dotTwoColor = Colors.red,
-    this.dotThreeColor = Colors.yellow,
-    this.dotFourColor = Colors.green,
-    this.duration = const Duration(milliseconds: 1000),
-    this.dotType = DotType.circle,
-    this.dotIcon = const Icon(Icons.blur_on)
-  });
-
+///home page
+class HomeScreenMain extends StatefulWidget {
+  final home;
+  final user;
+  const HomeScreenMain({Key key, this.home, this.user}) : super(key: key);
   @override
-  _GoogleLoader createState() => _GoogleLoader();
+  _HomeScreenMainState createState() => _HomeScreenMainState();
 }
-
-class _GoogleLoader extends State<GoogleLoder>
-    with SingleTickerProviderStateMixin {
-  Animation<double> animation_1;
-  Animation<double> animation_2;
-  Animation<double> animation_3;
-  Animation<double> animation_4;
-  AnimationController controller;
-
-  @override
-  void initState() {
-    super.initState();
-
-    controller = AnimationController(
-        duration: widget.duration, vsync: this);
-
-    animation_1 = Tween(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(0.0, 0.70, curve: Curves.ease),
-      ),
-    );
-
-    animation_2 = Tween(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(0.1, 0.8, curve: Curves.ease),
-      ),
-    );
-
-    animation_3 = Tween(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(0.2, 0.9, curve: Curves.ease),
-      ),
-    );
-
-    animation_4 = Tween(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Interval(0.3, 1.0, curve: Curves.ease),
-      ),
-    );
-
-    controller.addListener(() {
-      setState(() {
-        //print(animation_1.value);
-      });
-    });
-
-    controller.repeat();
-  }
-
+class _HomeScreenMainState extends State<HomeScreenMain> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      child: new Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          new Transform.translate(
-            offset: Offset(
-              0.0,
-              -30 *
-                  (animation_1.value <= 0.50
-                      ? animation_1.value
-                      : 1.0 - animation_1.value),
-            ),
-            child: new Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Dot(
-                radius: 10.0,
-                color: widget.dotOneColor,
-                type: widget.dotType,
-                icon: widget.dotIcon,
-              ),
-            ),
-          ),
-          Transform.translate(
-            offset: Offset(
-              0.0,
-              -30 *
-                  (animation_2.value <= 0.50
-                      ? animation_2.value
-                      : 1.0 - animation_2.value),
-            ),
-            child: new Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Dot(
-                radius: 10.0,
-                color: widget.dotTwoColor,
-                type: widget.dotType,
-                icon: widget.dotIcon,
-              ),
-            ),
-          ),
-          Transform.translate(
-            offset: Offset(
-              0.0,
-              -30 *
-                  (animation_3.value <= 0.50
-                      ? animation_3.value
-                      : 1.0 - animation_3.value),
-            ),
-            child: new Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Dot(
-                radius: 10.0,
-                color: widget.dotThreeColor,
-                type: widget.dotType,
-                icon: widget.dotIcon,
-              ),
-            ),
-          ),
-          Transform.translate(
-            offset: Offset(
-              0.0,
-              -30 *
-                  (animation_4.value <= 0.50
-                      ? animation_4.value
-                      : 1.0 - animation_4.value),
-            ),
-            child: new Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Dot(
-                radius: 10.0,
-                color: widget.dotFourColor,
-                type: widget.dotType,
-                icon: widget.dotIcon,
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: widget.home,
     );
-  }
-
-  @override
-  void dispose() {
-
-    controller.dispose();
-    super.dispose();
   }
 }
