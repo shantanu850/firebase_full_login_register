@@ -92,9 +92,9 @@ class Loader extends StatelessWidget {
         .then((value) =>
     (value['CompleteRegister'] == true)?
     Navigator.pushReplacement(context,
-      MaterialPageRoute(builder: (context) => HomeScreenMain(home:homepage)),
+      MaterialPageRoute(builder: (context) => homepage),
     ) : Navigator.pushReplacement(context,
-      MaterialPageRoute(builder: (context) => Registration(container:complete)),
+      MaterialPageRoute(builder: (context) => complete),
     )
     );
   }

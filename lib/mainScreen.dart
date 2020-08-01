@@ -617,8 +617,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                             Firestore.instance.collection(widget.databaseName).document(firebase.auth().currentUser.uid).get()
                                                 .then((DocumentSnapshot result) =>
                                             (result["CompleteRegister"]==true)?
-                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.home))):
-                                            Navigator.push(context, MaterialPageRoute(builder: (context) => Registration(container: widget.container,))));
+                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => widget.home)):
+                                            Navigator.push(context, MaterialPageRoute(builder: (context) => widget.container)));
                                           } else {
                                             //final errorMsg = AuthExceptionHandler.generateExceptionMessage(status);
                                             setState(() {
@@ -887,7 +887,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                                 "CompleteRegister":false,
                                               }).then((value) =>
                                                   Navigator.push(context, MaterialPageRoute(
-                                                      builder: (context) => Registration(container: widget.container,)))
+                                                      builder: (context) => widget.container))
                                               );
                                             } else {
                                               // final errorMsg = AuthExceptionHandler.generateExceptionMessage(status);
@@ -1036,17 +1036,16 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         if (authResult.additionalUserInfo.isNewUser) {
           Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
           Navigator.pushReplacement(context, MaterialPageRoute(
-              builder: (context) =>
-                  Registration(container:widget.container)));
+              builder: (context) =>widget.container));
         } else {
           Firestore.instance.collection(widget.databaseName).document(user.uid)
               .get()
               .then((DocumentSnapshot result) =>
           (result["CompleteRegister"] == true) ?
           Navigator.pushReplacement(context, MaterialPageRoute(
-              builder: (context) => HomeScreenMain(home: widget.home))) :
+              builder: (context) => widget.home)):
           Navigator.push(context, MaterialPageRoute(builder: (context) =>
-              Registration(container: widget.container)))
+              widget.container))
           );
         }
       }else{
@@ -1069,13 +1068,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         if(authResult.additionalUserInfo.isNewUser){
           Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
           Navigator.pushReplacement(context, MaterialPageRoute(
-              builder: (context) => Registration(container:widget.container)));
+              builder: (context) => widget.container));
         }else{
           Firestore.instance.collection(widget.databaseName).document(authResult.user.uid).get()
               .then((DocumentSnapshot result) =>
           (result["CompleteRegister"]==true)?
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.home))):
-          Navigator.push(context, MaterialPageRoute(builder: (context) => Registration(container: widget.container))));
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => widget.home)):
+          Navigator.push(context, MaterialPageRoute(builder: (context) => widget.container)));
         }
       }
     }catch(e){
@@ -1127,27 +1126,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
 }
-
-///complete registration page
-class Registration extends StatefulWidget {
-  final Widget container;
-  const Registration({Key key,this.container}) : super(key: key);
-  @override
-  _RegistrationState createState() => _RegistrationState();
-}
-class _RegistrationState extends State<Registration> {
-  @override
-  void initState() {
-
-    super.initState();
-  }
-  @override
-  Widget build(BuildContext context) {
-    return widget.container;
-
-  }
-}
-
 ///color loader
 class Loader extends StatefulWidget {
 
@@ -1310,21 +1288,8 @@ class Dot extends StatelessWidget {
   }
 }
 enum DotType {
-  square, circle, diamond, icon
-}
-
-///home page
-class HomeScreenMain extends StatefulWidget {
-  final home;
-  const HomeScreenMain({Key key, this.home}) : super(key: key);
-  @override
-  _HomeScreenMainState createState() => _HomeScreenMainState();
-}
-class _HomeScreenMainState extends State<HomeScreenMain> {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      child: widget.home,
-    );
-  }
+  square,
+  circle,
+  diamond,
+  icon
 }
