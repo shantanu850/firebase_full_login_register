@@ -216,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             child: PageView(
               controller: _controller,
               physics: new AlwaysScrollableScrollPhysics(),
-              children: <Widget>[loginPage(context), home(), signUpPage()],
+              children: <Widget>[loginPage(context), home(context), signUpPage(context)],
               scrollDirection: Axis.horizontal,
             )),
       ),
@@ -224,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   ///main layouts home,loginPage,signUpPage,
-  Widget home() {
+  Widget home(context) {
     var height = MediaQuery.of(context).size.height;
     var width = MediaQuery.of(context).size.width;
     return Container(
@@ -699,7 +699,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       ),
     );
   }
-  Widget signUpPage() {
+  Widget signUpPage(context) {
     var width = MediaQuery.of(context).size.width;
     return Container(
       alignment: Alignment.center,
