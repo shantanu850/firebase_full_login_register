@@ -123,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       send = true;
                     });
                   }
-                  }, child: Text("Send"),
+                }, child: Text("Send"),
               ),
               FlatButton(
                 onPressed: () {
@@ -614,12 +614,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                           });
                                           final status = await signInEmail(email,password,context);
                                           if (status == AuthResultStatus.successful) {
-                                            _auth.currentUser().then((value) =>
-                                                Firestore.instance.collection(widget.databaseName).document(value.uid).get()
-                                                    .then((DocumentSnapshot result) =>
-                                                (result["CompleteRegister"]==true)?
-                                                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.home,user:result))):
-                                                Navigator.push(context, MaterialPageRoute(builder: (context) => Registration(isNumber:false,data:email,container: widget.container,)))));
+                                            Firestore.instance.collection(widget.databaseName).document(firebase.auth().currentUser.uid).get()
+                                                .then((DocumentSnapshot result) =>
+                                            (result["CompleteRegister"]==true)?
+                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.home))):
+                                            Navigator.push(context, MaterialPageRoute(builder: (context) => Registration(container: widget.container,))));
                                           } else {
                                             //final errorMsg = AuthExceptionHandler.generateExceptionMessage(status);
                                             setState(() {
@@ -884,13 +883,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                             });
                                             final status = await signUpEmail(email,password,context);
                                             if (status == AuthResultStatus.successful) {
-                                              _auth.currentUser().then((value) =>
-                                                  Firestore.instance.collection(widget.databaseName).document(value.uid).setData({
-                                                    "CompleteRegister":false,
-                                                  }).then((value) =>
-                                                      Navigator.push(context, MaterialPageRoute(
-                                                          builder: (context) => Registration(isNumber:false,data:email,container: widget.container,)))
-                                                  )
+                                              Firestore.instance.collection(widget.databaseName).document(firebase.auth().currentUser.uid).setData({
+                                                "CompleteRegister":false,
+                                              }).then((value) =>
+                                                  Navigator.push(context, MaterialPageRoute(
+                                                      builder: (context) => Registration(container: widget.container,)))
                                               );
                                             } else {
                                               // final errorMsg = AuthExceptionHandler.generateExceptionMessage(status);
@@ -983,8 +980,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     try {
       firebase.UserCredential authResult = await firebase.auth().signInWithEmailAndPassword(email,password);
       if (authResult.user != null) {
-            firebase.auth().setPersistence(firebase.Persistence.LOCAL);
-            _status = AuthResultStatus.successful;
+        firebase.auth().setPersistence(firebase.Persistence.LOCAL);
+        _status = AuthResultStatus.successful;
       } else {
         _status = AuthResultStatus.undefined;
       }
@@ -1040,18 +1037,16 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
           Navigator.pushReplacement(context, MaterialPageRoute(
               builder: (context) =>
-                  Registration(isNumber:false,data:user.email,container:widget.container)));
+                  Registration(container:widget.container)));
         } else {
           Firestore.instance.collection(widget.databaseName).document(user.uid)
               .get()
               .then((DocumentSnapshot result) =>
           (result["CompleteRegister"] == true) ?
           Navigator.pushReplacement(context, MaterialPageRoute(
-              builder: (context) => HomeScreenMain(home: widget.home,user:result))) :
+              builder: (context) => HomeScreenMain(home: widget.home))) :
           Navigator.push(context, MaterialPageRoute(builder: (context) =>
-              Registration(isNumber:false,
-                  data:authResult.user.email,
-                  container: widget.container)))
+              Registration(container: widget.container)))
           );
         }
       }else{
@@ -1074,13 +1069,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         if(authResult.additionalUserInfo.isNewUser){
           Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
           Navigator.pushReplacement(context, MaterialPageRoute(
-              builder: (context) => Registration(isNumber:true,data:this.phoneNo,container:widget.container)));
+              builder: (context) => Registration(container:widget.container)));
         }else{
           Firestore.instance.collection(widget.databaseName).document(authResult.user.uid).get()
               .then((DocumentSnapshot result) =>
           (result["CompleteRegister"]==true)?
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.home,user:result))):
-          Navigator.push(context, MaterialPageRoute(builder: (context) => Registration(isNumber:true,data:this.phoneNo,container: widget.container))));
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreenMain(home:widget.home))):
+          Navigator.push(context, MaterialPageRoute(builder: (context) => Registration(container: widget.container))));
         }
       }
     }catch(e){
@@ -1100,7 +1095,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   Future<void> verifyPhone(phoneNo) async {
 
     final PhoneVerificationCompleted verified = (AuthCredential authResult) {
-    //  signIn(authResult);
+      //  signIn(authResult);
     };
     final PhoneVerificationFailed verificationfailed =
         (AuthException authException) {
@@ -1135,10 +1130,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
 ///complete registration page
 class Registration extends StatefulWidget {
-  final bool isNumber;
-  final String data;
   final Widget container;
-  const Registration({Key key, this.isNumber, this.data, this.container}) : super(key: key);
+  const Registration({Key key,this.container}) : super(key: key);
   @override
   _RegistrationState createState() => _RegistrationState();
 }
@@ -1323,8 +1316,7 @@ enum DotType {
 ///home page
 class HomeScreenMain extends StatefulWidget {
   final home;
-  final user;
-  const HomeScreenMain({Key key, this.home, this.user}) : super(key: key);
+  const HomeScreenMain({Key key, this.home}) : super(key: key);
   @override
   _HomeScreenMainState createState() => _HomeScreenMainState();
 }
