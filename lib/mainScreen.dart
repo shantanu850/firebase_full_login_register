@@ -981,7 +981,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   ///sign in methods
   Future<AuthResultStatus> signInEmail(String email, String password,context) async{
     try {
-      AuthResult authResult = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      firebase.UserCredential authResult = await firebase.auth().signInWithEmailAndPassword(email,password);
       if (authResult.user != null) {
             firebase.auth().setPersistence(firebase.Persistence.LOCAL);
             _status = AuthResultStatus.successful;
@@ -1000,7 +1000,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
   Future<AuthResultStatus> signUpEmail(email, password,context) async{
     try {
-      AuthResult authResult = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      firebase.UserCredential authResult = await firebase.auth().createUserWithEmailAndPassword(email,password);
       if (authResult.user != null) {
         firebase.auth().setPersistence(firebase.Persistence.LOCAL);
         Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
@@ -1025,16 +1025,15 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     final GoogleSignInAuthentication googleSignInAuthentication =
     await googleSignInAccount.authentication;
 
-    final AuthCredential credential = GoogleAuthProvider.getCredential(
-      accessToken: googleSignInAuthentication.accessToken,
-      idToken: googleSignInAuthentication.idToken,
+    final firebase.OAuthCredential credential = firebase.GoogleAuthProvider.credential(
+      googleSignInAuthentication.accessToken,googleSignInAuthentication.idToken,
     );
     try {
-      AuthResult authResult = await FirebaseAuth.instance.signInWithCredential(credential);
-      FirebaseUser user = authResult.user;
+      firebase.UserCredential authResult = await firebase.auth().signInWithCredential(credential);
+      firebase.User user = authResult.user;
       assert(!user.isAnonymous);
       assert(await user.getIdToken() != null);
-      final FirebaseUser currentUser = await FirebaseAuth.instance.currentUser();
+      final firebase.User currentUser = firebase.auth().currentUser;
       assert(user.uid == currentUser.uid);
       if(authResult.user != null) {
         if (authResult.additionalUserInfo.isNewUser) {
@@ -1068,9 +1067,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     }
     return _status;
   }
-  Future<AuthResultStatus> signIn(AuthCredential authCreds) async{
+  Future<AuthResultStatus> signIn(firebase.OAuthCredential authCreds) async{
     try{
-      AuthResult authResult = await _auth.signInWithCredential(authCreds);
+      firebase.UserCredential authResult = await firebase.auth().signInWithCredential(authCreds);
       if(authResult != null){
         if(authResult.additionalUserInfo.isNewUser){
           Firestore.instance.collection('user').document(authResult.user.uid).setData({"CompleteRegister":false,});
@@ -1095,12 +1094,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     return _status;
   }
   signInWithOTP(smsCode, verId) {
-    AuthCredential authCreds = PhoneAuthProvider.getCredential(verificationId: verId, smsCode: smsCode);
+    firebase.OAuthCredential authCreds = firebase.PhoneAuthProvider.credential(verId,smsCode);
     signIn(authCreds);
   }
   Future<void> verifyPhone(phoneNo) async {
+
     final PhoneVerificationCompleted verified = (AuthCredential authResult) {
-      signIn(authResult);
+    //  signIn(authResult);
     };
     final PhoneVerificationFailed verificationfailed =
         (AuthException authException) {

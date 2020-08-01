@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:firebase_full_login_register_web/mainScreen.dart';
+import 'package:firebase/firebase.dart' as firebase;
 
 class Auth extends StatefulWidget {
   final Widget appIcon;
@@ -43,8 +44,8 @@ class _SplashPageState extends State<Auth> with TickerProviderStateMixin {
     return Scaffold(
       body: Container(
         height: MediaQuery.of(context).size.height,
-        child: StreamBuilder<FirebaseUser>(
-            stream: FirebaseAuth.instance.onAuthStateChanged,
+        child: StreamBuilder<firebase.User>(
+            stream: firebase.auth().onAuthStateChanged,
             builder: (BuildContext context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Container(
